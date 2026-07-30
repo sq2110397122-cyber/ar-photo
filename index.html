@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>AR 动态照片</title>
+
+    <!-- 引入 3D 渲染引擎 A-Frame 与 MindAR 识别库 -->
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      /* 点击激活页面提示层 */
+      #ui-overlay {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        z-index: 999;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: rgba(0, 0, 0, 0.6);
+        color: white;
+        font-family: sans-serif;
+        cursor: pointer;
+      }
+      #ui-overlay.hidden {
+        display: none;
+      }
+      .start-btn {
+        padding: 12px 24px;
+        font-size: 18px;
+        background: #007aff;
+        color: white;
+        border: none;
+        border-radius: 25px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      }
+    </style>
+  </head>
+  <body>
+
+    <!-- 移动端交互遮罩 -->
+    <div id="ui-overlay">
+      <button class="start-btn">点击开启 AR 相机</button>
+    </div>
+
+    <!-- AR 场景 -->
+    <a-scene
+      mindar-image="imageTargetSrc: ./targets.mind;"
+      color-space="sRGB"
+      renderer="colorManagement: true, physicallyCorrectLights"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false">
+
+      <a-assets>
+        <video
+          id="arVideo"
+          src="./video.mp4"
+          preload="auto"
+          loop
+          crossorigin="anonymous"
+          playsinline
+          webkit-playsinline>
+        </video>
+      </a-assets>
+
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+      <a-entity id="target" mindar-image-target="targetIndex: 0">
+        <!-- 视频渲染平面：默认宽高由 JS 脚本自动根据视频比例动态计算 -->
+        <a-video
+          id="arVideoPlane"
+          src="#arVideo"
+          width="1"
+          height="1"
+          position="0 0 0"
+          rotation="0 0 0">
+        </a-video>
+      </a-entity>
+
+    </a-scene>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const overlay = document.querySelector("#ui-overlay");
+        const video = document.querySelector("#arVideo");
+        const aVideoPlane = document.querySelector("#arVideoPlane");
+        const target = document.querySelector("#target");
+
+        // 核心技术：根据视频元数据自动校正 3D 视频平面的宽高比
+        function adjustVideoAspectRatio() {
+          if (video.videoWidth && video.videoHeight) {
+            const aspectRatio = video.videoHeight / video.videoWidth;
+            // 保持宽度为 1 个单位，自动将高度设置为 1 * (高/宽)
+            aVideoPlane.setAttribute("width", "1");
+            aVideoPlane.setAttribute("height", aspectRatio.toFixed(4));
+            console.log(`[AR 状态] 已自适应视频比例：分辨率 ${video.videoWidth}x${video.videoHeight}，映射高度：${aspectRatio.toFixed(4)}`);
+          }
+        }
+
+        // 监听视频加载事件
+        video.addEventListener("loadedmetadata", adjustVideoAspectRatio);
+        if (video.readyState >= 1) {
+          adjustVideoAspectRatio();
+        }
+
+        // 1. 点击启动按钮，解锁 iOS/Android 声音与视频播放限制
+        overlay.addEventListener("click", () => {
+          overlay.classList.add("hidden");
+          video.play().then(() => {
+            video.pause();
+          }).catch(err => console.log("预加载响应:", err));
+        });
+
+        // 2. 识别到目标图片：开始播放
+        target.addEventListener("targetFound", () => {
+          video.play();
+        });
+
+        // 3. 移开目标图片：暂停播放
+        target.addEventListener("targetLost", () => {
+          video.pause();
+        });
+      });
+    </script>
+  </body>
+</html>
